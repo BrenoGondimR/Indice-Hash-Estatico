@@ -6,11 +6,20 @@ const app = express();
 const PORT = 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// CORS para permitir requisições de qualquer origem
 app.use(cors());
+
 // Tamanho do Bucket
 const BUCKET_SIZE_LIMIT = 1000;
+// Carrega o arquivo JSON e cria as páginas
+let paginatedWords ;
+// Assume totalRecords como o total de palavras no dicionário
+const totalRecords = Object.keys(loadWordsDictionary()).length;
+// Calcula o número necessário de buckets
+const requiredBuckets = Math.ceil(totalRecords / BUCKET_SIZE_LIMIT);
+// Inicialização dos buckets com uma estrutura que suporte overflow diretamente
+let buckets = Array.from({ length: requiredBuckets }, () => ({ words: [], overflow: null }));
+let collisionCounter = 0;
+let overflowCounter = 0;
 
 
 
@@ -35,71 +44,6 @@ function createPages(data, itemsPerPage) {
     }
     return pages;
 }
-
-// Carrega o arquivo JSON e cria as páginas
-let paginatedWords ;
-
-// Esta rota agora é responsável por definir a quantidade de itens por página e criar as páginas
-app.post('/api/setItemsPerPage', (req, res) => {
-    const { newItemsPerPage } = req.body;
-    if (newItemsPerPage && !isNaN(newItemsPerPage)) {
-        itemsPerPage = parseInt(newItemsPerPage, 10);
-        resetState(); // Reinicializa o estado antes de configurar novos parâmetros
-        // Carregando o dicionário de palavras e criando páginas com o novo valor de itemsPerPage
-        const wordsDictionary = loadWordsDictionary();
-        paginatedWords = createPages(wordsDictionary, itemsPerPage); // Atualiza a variável global paginatedWords
-        console.log(paginatedWords);
-        insertIntoBuckets(paginatedWords); // Reinicializa e insere as palavras nos buckets com a nova configuração
-        const totalRecords = Object.keys(wordsDictionary).length;
-        const totalBuckets = buckets.length;
-        console.log(collisionCounter);
-        console.log(buckets);
-        console.log(totalBuckets);
-        console.log(totalRecords);
-
-        const collisionRate = totalRecords > 0 ? (collisionCounter / totalRecords) * 100 : 0;
-        const overflowRate = totalBuckets > 0 ? (overflowCounter / totalBuckets) * 100 : 0;
-        res.json({
-            message: "Quantidade de itens por página atualizada.",
-            itemsPerPage,
-            collisionRate: collisionRate.toFixed(2) + '%',
-            overflowRate: overflowRate.toFixed(2) + '%'
-        });
-    } else {
-        res.status(400).json({message: "Por favor, forneça um número válido para a quantidade de itens por página."});
-    }
-});
-
-// Rota para acessar uma página específica
-app.get('/api/pages/:pageNumber', (req, res) => {
-    const { pageNumber } = req.params;
-    const pageIndex = parseInt(pageNumber, 10) - 1;
-
-    if (pageIndex >= 0 && pageIndex < paginatedWords.length) {
-        res.json(paginatedWords[pageIndex]);
-    } else {
-        res.status(404).send('Page not found');
-    }
-});
-
-// Função hash simples
-function hashFunction(key, size) {
-    let hash = 5381; // Inicializa com um número primo grande
-    for (let i = 0; i < key.length; i++) {
-        hash = ((hash << 5) + hash) + key.charCodeAt(i); // hash * 33 + c
-        hash = hash & hash; // Converte para um número de 32bit
-    }
-    return Math.abs(hash) % size;
-}
-
-// Assume totalRecords como o total de palavras no dicionário
-const totalRecords = Object.keys(loadWordsDictionary()).length;
-// Calcula o número necessário de buckets
-const requiredBuckets = Math.ceil(totalRecords / BUCKET_SIZE_LIMIT);
-// Inicialização dos buckets com uma estrutura que suporte overflow diretamente
-let buckets = Array.from({ length: requiredBuckets }, () => ({ words: [], overflow: null }));
-let collisionCounter = 0;
-let overflowCounter = 0;
 
 // Função para inserir palavras nos buckets
 function insertIntoBuckets(pages) {
@@ -138,6 +82,47 @@ function insertIntoBuckets(pages) {
         });
     });
 }
+
+// Função hash simples
+function hashFunction(key, size) {
+    let hash = 5381; // Inicializa com um número primo grande
+    for (let i = 0; i < key.length; i++) {
+        hash = ((hash << 5) + hash) + key.charCodeAt(i); // hash * 33 + c
+        hash = hash & hash; // Converte para um número de 32bit
+    }
+    return Math.abs(hash) % size;
+}
+
+// Esta rota agora é responsável por definir a quantidade de itens por página e criar as páginas
+app.post('/api/setItemsPerPage', (req, res) => {
+    const { newItemsPerPage } = req.body;
+    if (newItemsPerPage && !isNaN(newItemsPerPage)) {
+        itemsPerPage = parseInt(newItemsPerPage, 10);
+        resetState(); // Reinicializa o estado antes de configurar novos parâmetros
+        // Carregando o dicionário de palavras e criando páginas com o novo valor de itemsPerPage
+        const wordsDictionary = loadWordsDictionary();
+        paginatedWords = createPages(wordsDictionary, itemsPerPage); // Atualiza a variável global paginatedWords
+        console.log(paginatedWords);
+        insertIntoBuckets(paginatedWords); // Reinicializa e insere as palavras nos buckets com a nova configuração
+        const totalRecords = Object.keys(wordsDictionary).length;
+        const totalBuckets = buckets.length;
+        console.log(collisionCounter);
+        console.log(buckets);
+        console.log(totalBuckets);
+        console.log(totalRecords);
+
+        const collisionRate = totalRecords > 0 ? (collisionCounter / totalRecords) * 100 : 0;
+        const overflowRate = totalBuckets > 0 ? (overflowCounter / totalBuckets) * 100 : 0;
+        res.json({
+            message: "Quantidade de itens por página atualizada.",
+            itemsPerPage,
+            collisionRate: collisionRate.toFixed(2) + '%',
+            overflowRate: overflowRate.toFixed(2) + '%'
+        });
+    } else {
+        res.status(400).json({message: "Por favor, forneça um número válido para a quantidade de itens por página."});
+    }
+});
 
 app.get('/api/search/:key', (req, res) => {
     const { key } = req.params;
