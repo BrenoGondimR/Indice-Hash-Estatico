@@ -11,4 +11,7 @@ export const setItemsPerPageUrl = apisUrl + 'setItemsPerPage';
 
 export const searchByKeyUrl = apisUrl + 'search/';
 
+export const tableScanUrl = apisUrl + 'table-scan/';
+
+
 

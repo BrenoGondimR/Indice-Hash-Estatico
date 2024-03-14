@@ -27,10 +27,12 @@
         <b-form-group label="Digite o número de registros para o Table Scan:" label-for="scanInput" class="mt-3">
           <b-form-input :disabled="disableTupla" id="scanInput" type="number" v-model="numRegistros" placeholder="Número de Registros"></b-form-input>
         </b-form-group>
-        <Button :disabled="disableTupla" label="Realizar Table Scan" severity="info" raised style="border-radius: 8px !important;" />
-
-
-        <div id="searchResults" class="mt-3"></div>
+        <Button :disabled="disableTupla" @click="realizarTableScan" label="Realizar Table Scan" severity="info" raised style="border-radius: 8px !important;" />
+        <b-table striped hover :items="records" class="mt-3">
+          <template #cell(word)="data">
+            {{ data.item.word }}
+          </template>
+        </b-table>
       </b-col>
     </b-row>
 
@@ -57,7 +59,7 @@
 
 import ProgressCircle from "@/components/ProgressCircle.vue";
 import { useToast } from "vue-toastification";
-import {postConstruirIndice, searchForKey} from "@/app_service";
+import {postConstruirIndice, searchForKey, tableScan} from "@/app_service";
 export default {
   name: 'StatsButton',
   components: {ProgressCircle},
@@ -75,6 +77,7 @@ export default {
       collisionRate: 0,
       overflowRate: 0,
       resultadoBusca: {}, // Estado para armazenar o resultado da busca
+      records: [],
     }
   },
   methods: {
@@ -116,13 +119,24 @@ export default {
             });
 
           });
+    },
+    realizarTableScan() {
+      // Supondo que você tenha uma função de API configurada semelhante à anteriormente mencionada
+      tableScan(this.numRegistros)
+          .then(response => {
+            console.log(response)
+            this.records = response.data.map(word => ({ word }));
+          })
+          .catch(error => {
+            console.error("Erro ao realizar table scan: ", error);
+          });
     }
   },
 };
 </script>
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap')
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
 #app {
   font-family: "Poppins", sans-serif;
   -webkit-font-smoothing: antialiased;

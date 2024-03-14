@@ -14,6 +14,13 @@ const BUCKET_SIZE_LIMIT = 1000;
 
 
 
+function resetState() {
+    paginatedWords = [];
+    buckets = Array.from({ length: requiredBuckets }, () => ({ words: [], overflow: null }));
+    collisionCounter = 0;
+    overflowCounter = 0;
+}
+
 function loadWordsDictionary() {
     const jsonPath = path.join(__dirname, '..', 'data', 'words_dictionary.json');
     let rawdata = fs.readFileSync(jsonPath, 'utf8');
@@ -37,6 +44,7 @@ app.post('/api/setItemsPerPage', (req, res) => {
     const { newItemsPerPage } = req.body;
     if (newItemsPerPage && !isNaN(newItemsPerPage)) {
         itemsPerPage = parseInt(newItemsPerPage, 10);
+        resetState(); // Reinicializa o estado antes de configurar novos parâmetros
         // Carregando o dicionário de palavras e criando páginas com o novo valor de itemsPerPage
         const wordsDictionary = loadWordsDictionary();
         paginatedWords = createPages(wordsDictionary, itemsPerPage); // Atualiza a variável global paginatedWords

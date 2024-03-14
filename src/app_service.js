@@ -1,5 +1,5 @@
 import axios from "axios";
-import {searchByKeyUrl, setItemsPerPageUrl} from "@/constants/config";
+import {searchByKeyUrl, setItemsPerPageUrl, tableScanUrl} from "@/constants/config";
 
 
 export const postConstruirIndice = (newItemsPerPage) => {
@@ -8,4 +8,8 @@ export const postConstruirIndice = (newItemsPerPage) => {
 
 export const searchForKey = (key) => {
     return axios.get(`${searchByKeyUrl}${key}`);
+};
+
+export const tableScan = (numRecords) => {
+    return axios.get(`${tableScanUrl}${numRecords}`);
 };
