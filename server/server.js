@@ -37,61 +37,49 @@ function loadWordsDictionary() {
 
 // Define a função createPages que recebe um objeto de dados e o número de itens por página como argumentos
 function createPages(data, itemsPerPage) {
-    // Converte o objeto de dados em um array de [chave, valor] usando Object.entries
     const entries = Object.entries(data);
-    // Inicializa um array vazio para armazenar as páginas criadas
     const pages = [];
-    // Usa um loop for para iterar sobre as entradas, incrementando pelo número de itens por página a cada iteração
     for (let i = 0; i < entries.length; i += itemsPerPage) {
-        // Adiciona ao array de páginas uma nova página contendo apenas as chaves das entradas atuais, limitado pelo número de itens por página
-        pages.push(entries.slice(i, i + itemsPerPage).map(entry => entry[0]));
+        const pageIndex = Math.floor(i / itemsPerPage); // Correção aqui
+        pages.push(entries.slice(i, i + itemsPerPage).map(entry => ({
+            word: entry[0],
+            pageIndex // Usando a variável calculada fora do map
+        })));
     }
-    // Retorna o array de páginas criado
     return pages;
 }
 
 
 // Define a função insertIntoBuckets que recebe 'pages', uma matriz de palavras, como argumento.
 function insertIntoBuckets(pages) {
-    // Inicializa contadores de colisões e overflow para monitorar a inserção.
     collisionCounter = 0;
     overflowCounter = 0;
-    console.log('oi')
-    // Itera sobre cada página (array de palavras) dentro de 'pages'.
-    pages.forEach(page => {
-        // Itera sobre cada palavra na página atual.
-        page.forEach(word => {
-            // Calcula o índice do bucket para a palavra atual usando uma função hash.
+
+    pages.forEach((page, pageIndex) => {
+        page.forEach(({ word, pageIndex }) => { // Ajuste aqui para usar a estrutura atualizada
             const bucketIndex = hashFunction(word, buckets.length);
-            // Acessa o bucket atual com base no índice calculado.
             let currentBucket = buckets[bucketIndex];
 
-            // Verifica se o bucket atingiu o limite de tamanho. A lógica de colisão começa aqui.
             if (currentBucket.words.length >= BUCKET_SIZE_LIMIT) {
-                // Incrementa o contador de colisões se estivermos inserindo em um bucket cheio pela primeira vez.
                 if (currentBucket.words.length === BUCKET_SIZE_LIMIT || currentBucket.overflow !== null) {
                     collisionCounter++;
                 }
-                // Procura por um bucket de overflow disponível se o bucket atual estiver cheio.
                 while (currentBucket.overflow !== null) {
                     currentBucket = currentBucket.overflow;
                 }
-                // Verifica novamente se o bucket atual (ou de overflow) está cheio.
                 if (currentBucket.words.length >= BUCKET_SIZE_LIMIT) {
-                    // Cria um novo bucket de overflow se necessário e insere a palavra nele.
-                    currentBucket.overflow = {words: [word], overflow: null};
+                    currentBucket.overflow = { words: [{word, pageIndex}], overflow: null };
                     overflowCounter++;
                 } else {
-                    // Se ainda houver espaço, simplesmente insere a palavra no bucket atual.
-                    currentBucket.words.push(word);
+                    currentBucket.words.push({word, pageIndex});
                 }
             } else {
-                // Se o bucket inicial não estiver cheio, insere a palavra diretamente.
-                currentBucket.words.push(word);
+                currentBucket.words.push({word, pageIndex});
             }
         });
     });
 }
+
 
 // Define a função hash que calcula o índice de um array baseado em uma chave e tamanho.
 function hashFunction(key, size) {
@@ -148,42 +136,44 @@ app.post('/api/setItemsPerPage', (req, res) => {
 
 // Define uma rota GET no servidor Express para pesquisar uma palavra.
 app.get('/api/search/:key', (req, res) => {
-    const {key} = req.params; // Extrai a chave (palavra) a ser procurada da URL.
-    const bucketIndex = hashFunction(key, buckets.length); // Calcula qual bucket procurar com base na chave.
-    let currentBucket = buckets[bucketIndex]; // Acessa o bucket inicial.
-    let totalBucketsAccessed = 1; // Inicia a contagem de buckets acessados.
+    const { key } = req.params;
+    const bucketIndex = hashFunction(key, buckets.length);
+    let currentBucket = buckets[bucketIndex];
+    let totalBucketsAccessed = 1;
 
-    // Enquanto houver buckets para verificar (incluindo overflows).
     while (currentBucket !== null) {
-        // Verifica se a palavra atual existe no bucket.
-        if (currentBucket.words.includes(key)) {
-            // Se encontrada, retorna informações sobre a busca.
-            return res.json({
-                message: `Palavra encontrada: ${key}`,
-                bucket: bucketIndex,
-                totalBucketsAccessed: totalBucketsAccessed
-            });
+        for (let i = 0; i < currentBucket.words.length; i++) {
+            if (currentBucket.words[i].word === key) {
+                // Quando encontrar a palavra, retorna também o pageIndex
+                return res.json({
+                    message: `Palavra encontrada: ${key}`,
+                    page: currentBucket.words[i].pageIndex + 1, // Adicionando 1 para tornar o índice base-1
+                    bucket: bucketIndex,
+                    totalBucketsAccessed
+                });
+            }
         }
-        // Se não encontrada no bucket atual, passa para o overflow.
         currentBucket = currentBucket.overflow;
-        totalBucketsAccessed++; // Incrementa o contador de buckets acessados.
+        totalBucketsAccessed++;
     }
 
-    // Se a palavra não for encontrada após verificar todos os buckets e overflows.
     return res.status(404).json({
         message: "Palavra não encontrada",
-        totalBucketsAccessed: totalBucketsAccessed - 1 // Ajusta a contagem para não incluir a última tentativa.
+        totalBucketsAccessed: totalBucketsAccessed - 1
     });
 });
+
 
 // Define uma rota GET para realizar um scan na tabela e retornar um número específico de registros.
 app.get('/api/table-scan/:numRecords', (req, res) => {
     const {numRecords} = req.params; // Extrai o número de registros requisitados da URL.
     const num = parseInt(numRecords, 10); // Converte o número de registros para inteiro.
     let records = []; // Inicializa um array para armazenar os registros a serem retornados.
+    let pagesAccessed = 0;
 
     // Itera sobre as páginas de palavras paginadas.
     for (let page of paginatedWords) {
+        pagesAccessed++; // Incrementa a cada iteração de página
         // Itera sobre cada palavra na página atual.
         for (let word of page) {
             // Verifica se o array de registros já alcançou o número desejado de registros.
@@ -200,7 +190,7 @@ app.get('/api/table-scan/:numRecords', (req, res) => {
     }
 
     // Retorna os registros encontrados como resposta JSON.
-    res.json(records);
+    res.json({ records, pagesAccessed });
 });
 
 // Iniciando o servidor

@@ -21,6 +21,7 @@
         <div v-if="resultadoBusca.message" class="mt-3">
           <p>{{ resultadoBusca.message }}</p>
           <p v-if="resultadoBusca.totalBucketsAccessed">Paginas Acessadas: {{ resultadoBusca.totalBucketsAccessed }}</p>
+          <p v-if="resultadoBusca.page">Pagina: {{ resultadoBusca.page }}</p>
           <p v-if="typeof resultadoBusca.bucket !== 'undefined'">Índice no Bucket: {{ resultadoBusca.bucket }}</p>
         </div>
 
@@ -33,6 +34,7 @@
             {{ data.item.word }}
           </template>
         </b-table>
+        <p class="mt-3">Páginas Acessadas: {{ pagesAccessed }}</p>
       </b-col>
     </b-row>
 
@@ -121,11 +123,10 @@ export default {
           });
     },
     realizarTableScan() {
-      // Supondo que você tenha uma função de API configurada semelhante à anteriormente mencionada
       tableScan(this.numRegistros)
           .then(response => {
-            console.log(response)
-            this.records = response.data.map(word => ({ word }));
+            this.records = response.data.records.map(item => ({ word: item }));
+            this.pagesAccessed = response.data.pagesAccessed; // Atualiza a variável com o número de páginas acessadas
           })
           .catch(error => {
             console.error("Erro ao realizar table scan: ", error);
